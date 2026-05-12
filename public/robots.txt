@@ -1,0 +1,9 @@
+# Muie Razvan. one of nine. found via the public archives.
+User-agent: *
+Allow: /
+Disallow: /secret
+Disallow: /hunt
+Disallow: /hunt/peek
+Disallow: /cert
+
+Sitemap: https://puiemrazvan.momentan.fun/sitemap.xml

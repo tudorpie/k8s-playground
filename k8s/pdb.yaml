@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: k8s-playground
+  namespace: k8s-playground
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: k8s-playground

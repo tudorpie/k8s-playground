@@ -1,0 +1,32 @@
+# A deliberately bad pod used to verify the PSA admission controller rejects
+# manifests that violate the restricted profile on the k8s-playground namespace.
+#
+#   kubectl apply -f tests/sample-bad/pod-privileged.yaml
+#
+# Expected outcome: rejected with an error like
+#   Error from server (Forbidden): error when creating "...": pods "bad" is
+#   forbidden: violates PodSecurity "restricted:latest": ...
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad
+  namespace: k8s-playground
+spec:
+  containers:
+    - name: bad
+      image: busybox:latest
+      command: ["sleep", "3600"]
+      securityContext:
+        privileged: true
+        runAsUser: 0
+        allowPrivilegeEscalation: true
+        capabilities:
+          add:
+            - SYS_ADMIN
+            - NET_ADMIN
+  hostNetwork: true
+  hostPID: true
+  volumes:
+    - name: host
+      hostPath:
+        path: /

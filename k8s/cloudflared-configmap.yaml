@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: k8s-playground
+data:
+  config.yaml: |
+    # cloudflared in-cluster configuration.
+    # When the deployment uses --token, ingress rules are managed remotely
+    # in the cloudflare dashboard / via the cloudflare API. This file is kept
+    # in source as the single source of truth for what *should* be set; the
+    # tunnel-up script applies these rules via the API on every deploy.
+    tunnel: k8s-playground
+    metrics: 0.0.0.0:2000
+    no-autoupdate: true
+    ingress:
+      - hostname: puiemrazvan.momentan.fun
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+        originRequest:
+          connectTimeout: 10s
+          noTLSVerify: true
+          httpHostHeader: puiemrazvan.momentan.fun
+      - service: http_status:404

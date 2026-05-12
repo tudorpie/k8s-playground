@@ -1,0 +1,54 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# next
+.next/
+out/
+build/
+
+# misc
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env
+.env
+.env.*
+!.env.example
+.envrc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# vercel
+.vercel
+
+# cloudflared / kube creds
+*.cloudflared.json
+cloudflared-token.txt
+kubeconfig*
+
+# fish defensive
+*.fish.bak
+config.fish.local
+
+# OS
+Thumbs.db

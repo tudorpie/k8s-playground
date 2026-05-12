@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-playground
+  namespace: k8s-playground
+  labels:
+    app: k8s-playground
+spec:
+  type: ClusterIP
+  selector:
+    app: k8s-playground
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

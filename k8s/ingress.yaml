@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: k8s-playground
+  namespace: k8s-playground
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-connections: "32"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      if ($http_user_agent ~* (nikto|sqlmap|nmap|wpscan|masscan|acunetix|fimap|zmeu)) {
+        return 444;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: puiemrazvan.momentan.fun
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: k8s-playground
+                port:
+                  number: 80

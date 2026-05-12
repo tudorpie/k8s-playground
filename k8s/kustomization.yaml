@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: k8s-playground
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - cloudflared-configmap.yaml
+  - cloudflared-deployment.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: k8s-playground

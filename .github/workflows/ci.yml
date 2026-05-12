@@ -1,0 +1,141 @@
+# CI for k8s-playground. Single workflow, four jobs running in parallel.
+#
+# No deployment from CI. The deployment target is the operator's local Mac
+# running k3d; the github runners cannot reach it. Deploys are performed
+# manually via `make deploy` from the operator's shell.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # -------------------------------------------------------------------------
+  app:
+    name: app (lint + typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
+
+  # -------------------------------------------------------------------------
+  image:
+    name: image (buildx arm64 + trivy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build arm64 image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: k8s-playground:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy image scan (HIGH/CRITICAL gate)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: k8s-playground:ci
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          format: table
+
+      - name: Trivy config scan (report only)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: k8s
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+
+  # -------------------------------------------------------------------------
+  manifests:
+    name: manifests (kustomize build + kubeconform)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install kubeconform
+        run: |
+          curl -fsSL -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -C /tmp -xf /tmp/kubeconform.tar.gz
+          sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
+
+      - name: install kustomize
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo install -m 0755 kustomize /usr/local/bin/kustomize
+
+      - name: kustomize build
+        run: kustomize build k8s/ > /tmp/all.yaml
+
+      - name: kubeconform validate
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/all.yaml
+
+      - name: kubeconform validate sample-bad (must still parse)
+        run: kubeconform -strict -summary tests/sample-bad/*.yaml
+
+  # -------------------------------------------------------------------------
+  secrets:
+    name: secrets (gitleaks current + history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install gitleaks
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -C /tmp -xf /tmp/gitleaks.tar.gz
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+
+      - name: gitleaks current tree
+        run: gitleaks detect --source . --verbose --redact --exit-code 1
+
+      - name: gitleaks full history
+        run: gitleaks detect --source . --log-opts="--all" --verbose --redact --exit-code 1
