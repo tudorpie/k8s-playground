@@ -43,7 +43,9 @@ next-env.d.ts
 
 # cloudflared / kube creds
 *.cloudflared.json
+.cloudflared.state
 cloudflared-token.txt
+cloudflared-credentials.json
 kubeconfig*
 
 # fish defensive
