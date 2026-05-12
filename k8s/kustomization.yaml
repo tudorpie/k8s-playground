@@ -14,5 +14,12 @@ resources:
   - cloudflared-configmap.yaml
   - cloudflared-deployment.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: k8s-playground
+# Use the modern `labels` field with includeSelectors=false. The legacy
+# `commonLabels` would inject this label into every label-selector — including
+# the `to:` selectors inside NetworkPolicies, which would then fail to match
+# kube-dns / ingress-nginx (those pods do not carry this label).
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: k8s-playground
+    includeSelectors: false
+    includeTemplates: false

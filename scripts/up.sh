@@ -41,6 +41,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.service.type=LoadBalancer \
   --set controller.admissionWebhooks.enabled=false \
   --set controller.allowSnippetAnnotations=true \
+  --set controller.config.annotations-risk-level=Critical \
   --set controller.config.use-forwarded-headers=true \
   --set controller.config.compute-full-forwarded-for=true \
   --set controller.config.proxy-body-size=1m \

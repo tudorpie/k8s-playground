@@ -3,6 +3,22 @@ set -uo pipefail
 
 NAMESPACE="${NAMESPACE:-k8s-playground}"
 PUBLIC_URL="${PUBLIC_URL:-https://puiemrazvan.momentan.fun}"
+PUBLIC_HOST=$(echo "${PUBLIC_URL}" | sed -E 's#https?://##' | cut -d/ -f1)
+
+# macOS's resolver caches negative DNS lookups aggressively. If the system
+# resolver can't see the hostname yet but a public resolver can (DNS was
+# created recently), fall back to --resolve.
+RESOLVE_ARG=""
+if ! getent hosts "${PUBLIC_HOST}" >/dev/null 2>&1 && ! host "${PUBLIC_HOST}" >/dev/null 2>&1; then
+  CF_IP=$(dig +short @1.1.1.1 "${PUBLIC_HOST}" 2>/dev/null | head -1)
+  if [ -n "${CF_IP}" ]; then
+    RESOLVE_ARG="--resolve ${PUBLIC_HOST}:443:${CF_IP}"
+  fi
+fi
+curl_public() {
+  # shellcheck disable=SC2086
+  curl ${RESOLVE_ARG} "$@"
+}
 PASS=0
 FAIL=0
 COL_RESET=$(printf '\033[0m')
@@ -16,10 +32,11 @@ skip() { printf "  ${COL_DIM}SKIP${COL_RESET} %s\n" "$1"; }
 header() { printf "\n${COL_DIM}== %s ==${COL_RESET}\n" "$1"; }
 
 # ---------------------------------------------------------------------------
+# Distroless has no `id` binary; use the embedded Node to read the uid.
 header "pod identity"
-ID_OUT=$(kubectl exec -n "${NAMESPACE}" deploy/k8s-playground -- id 2>&1 || true)
+ID_OUT=$(kubectl exec -n "${NAMESPACE}" deploy/k8s-playground -- /nodejs/bin/node -e "console.log('uid='+process.getuid()+' gid='+process.getgid())" 2>&1 || true)
 if echo "$ID_OUT" | grep -q "uid=65532"; then
-  pass "pod uid=65532"
+  pass "pod ${ID_OUT}"
 else
   fail "expected uid=65532; got: ${ID_OUT}"
 fi
@@ -69,7 +86,7 @@ fi
 # ---------------------------------------------------------------------------
 header "scanner paths on public URL"
 for path in "/.env" "/admin" "/wp-login.php" "/.git/config" "/phpinfo.php"; do
-  code=$(curl -ksS -o /dev/null -w "%{http_code}" -m 5 "${PUBLIC_URL}${path}" 2>/dev/null || echo "000")
+  code=$(curl_public -ksS -o /dev/null -w "%{http_code}" -m 5 "${PUBLIC_URL}${path}" 2>/dev/null || echo "000")
   if [ "$code" = "404" ] || [ "$code" = "000" ]; then
     pass "${path} → ${code}"
   else
@@ -79,7 +96,7 @@ done
 
 # ---------------------------------------------------------------------------
 header "security headers"
-HDRS=$(curl -ksI -m 5 "${PUBLIC_URL}/" 2>/dev/null || true)
+HDRS=$(curl_public -ksI -m 5 "${PUBLIC_URL}/" 2>/dev/null || true)
 if [ -z "$HDRS" ]; then
   skip "no response from ${PUBLIC_URL} — tunnel down?"
 else
@@ -131,7 +148,7 @@ fi
 
 # ---------------------------------------------------------------------------
 header "/hunt/peek exposes dedication via downward API + ENV"
-PEEK=$(curl -ksS -m 5 "${PUBLIC_URL}/hunt/peek" 2>/dev/null || echo "{}")
+PEEK=$(curl_public -ksS -m 5 "${PUBLIC_URL}/hunt/peek" 2>/dev/null || echo "{}")
 if echo "$PEEK" | jq -e '.annotations["dedication.k8s-playground.io/to"]' >/dev/null 2>&1; then
   pass "annotation visible"
 else

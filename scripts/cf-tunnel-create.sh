@@ -24,12 +24,6 @@ require_success() {
   fi
 }
 
-echo "[tunnel] resolving account id"
-ACC_RES=$(cf "$API/accounts")
-require_success "$ACC_RES" "list accounts"
-ACCOUNT_ID=$(echo "$ACC_RES" | jq -r '.result[0].id')
-echo "[tunnel] account: $ACCOUNT_ID"
-
 echo "[tunnel] resolving zone id for $ZONE"
 ZONE_RES=$(cf "$API/zones?name=${ZONE}")
 require_success "$ZONE_RES" "list zones"
@@ -39,6 +33,17 @@ if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "null" ]; then
   exit 1
 fi
 echo "[tunnel] zone: $ZONE_ID"
+
+# Derive the account id from the zone object — this avoids needing
+# Account.Settings.Read on the token (Zone.Zone.Read already exposes the
+# owning account on each zone).
+ACCOUNT_ID=$(echo "$ZONE_RES" | jq -r '.result[0].account.id // empty')
+if [ -z "$ACCOUNT_ID" ] || [ "$ACCOUNT_ID" = "null" ]; then
+  ACC_RES=$(cf "$API/accounts")
+  require_success "$ACC_RES" "list accounts"
+  ACCOUNT_ID=$(echo "$ACC_RES" | jq -r '.result[0].id')
+fi
+echo "[tunnel] account: $ACCOUNT_ID"
 
 # Reuse if a tunnel by this name already exists.
 EX_RES=$(cf "$API/accounts/$ACCOUNT_ID/cfd_tunnel?name=${TUNNEL_NAME}&is_deleted=false")
@@ -67,7 +72,7 @@ CFG_RES=$(cf -X PUT "$API/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID/configurati
     --arg s "$ORIGIN_SERVICE" '{
       config: {
         ingress: [
-          { hostname: $h, service: $s, originRequest: { connectTimeout: "10s", noTLSVerify: true, httpHostHeader: $h } },
+          { hostname: $h, service: $s, originRequest: { noTLSVerify: true, httpHostHeader: $h } },
           { service: "http_status:404" }
         ]
       }
